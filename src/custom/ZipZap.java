@@ -3,6 +3,7 @@ package custom;
 import com.motivewave.platform.sdk.common.*;
 import com.motivewave.platform.sdk.common.desc.*;
 import com.motivewave.platform.sdk.draw.Label;
+import com.motivewave.platform.sdk.order_mgmt.OrderContext;
 import com.motivewave.platform.sdk.study.Study;
 import com.motivewave.platform.sdk.study.StudyHeader;
 
@@ -20,6 +21,7 @@ import java.util.List;
         overlay = true,
         studyOverlay = true,
         supportsBarUpdates = false,
+        manualEntry = true,
         helpLink = "https://google.com")
 public class ZipZap extends Study {
     enum Values {DELTA}
@@ -92,32 +94,38 @@ public class ZipZap extends Study {
         pivot = 0;
     }
 
-    private void buySell(PPoint pointOne, PPoint pointTwo) {
-        if (pointOne.top) {
-            Double average = (pointOne.coord.getValue() - pointTwo.coord.getValue()) / 2;
-            // Should place a SELL order for average
-        } else {
-            Double average = (pointTwo.coord.getValue() - pointOne.coord.getValue()) / 2;
-            // Should place a BUY order for average
-        }
+    @Override
+    public void onEnterNow(OrderContext orderContext) {
+        super.onEnterNow(orderContext);
+        var points = selectPPoints(orderContext.getDataContext());
+        var s = getSettings();
+        double qty = s.getDouble(QTY, 0.0);
+        buySell(orderContext, qty, points.getFirst(), points.getLast());
     }
 
-    @Override
-    protected void calculateValues(DataContext ctx) {
+    private void buySell(OrderContext orderContext, double qty, PPoint pointOne, PPoint pointTwo) {
+        Enums.OrderAction action;
+        double limit;
+        if (pointOne.top) {
+            // Should place a SELL order for average
+            limit = (pointOne.coord.getValue() - pointTwo.coord.getValue()) / 2;
+            action = Enums.OrderAction.SELL;
+        } else {
+            // Should place a BUY order for average
+            limit = (pointTwo.coord.getValue() - pointOne.coord.getValue()) / 2;
+            action = Enums.OrderAction.BUY;
+        }
+
+        orderContext.createLimitOrder(Enums.OrderAction.BUY, Enums.TIF.GTC, (float) qty, (float) limit);
+    }
+
+    private List<PPoint> selectPPoints(DataContext ctx) {
         var s = getSettings();
         Object highInput = s.getInput(HIGH_INPUT);
         Object lowInput = s.getInput(LOW_INPUT);
         double reversal = s.getDouble(REVERSAL, 1.0) / 100.0;
         int reversalTicks = s.getInteger(REVERSAL_TICKS, 10);
         boolean useTicks = s.getBoolean(USE_TICKS, false);
-        int offset = s.getInteger(OFFSET, 5);
-        double qty = s.getDouble(QTY, 0.0);
-        var line = s.getPath(Inputs.PATH);
-        var defaults = ctx.getDefaults();
-        var fi = s.getFont(Inputs.FONT);
-        Font f = fi == null ? defaults.getFont() : fi.getFont();
-        Color bgColor = defaults.getBackgroundColor();
-        Color txtColor = line.getColor();
 
         var series = ctx.getDataSeries();
         var instr = ctx.getInstrument();
@@ -166,11 +174,25 @@ public class ZipZap extends Study {
         }
 
         int start = Math.max(0, points.size() - 3);
-        int end = points.size() - 1;
-        List<PPoint> newPoints = points.subList(start, end);
+        int end = points.size() - 2;
+        return points.subList(start, end);
+    }
 
-        // Build the ZigZag lines
-        // For efficiency reasons, only build the delta
+    @Override
+    protected void calculateValues(DataContext ctx) {
+        var newPoints = selectPPoints(ctx);
+
+        var s = getSettings();
+        int offset = s.getInteger(OFFSET, 5);
+        var line = s.getPath(Inputs.PATH);
+        var defaults = ctx.getDefaults();
+        var fi = s.getFont(Inputs.FONT);
+
+        Font f = fi == null ? defaults.getFont() : fi.getFont();
+        Color bgColor = defaults.getBackgroundColor();
+        Color txtColor = line.getColor();
+
+
         beginFigureUpdate();
 
         int index = 1;

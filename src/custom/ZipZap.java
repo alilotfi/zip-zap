@@ -100,7 +100,7 @@ public class ZipZap extends Study {
         var points = selectPPoints(orderContext.getDataContext());
         var s = getSettings();
         double qty = s.getDouble(QTY, 0.0);
-        buySell(orderContext, qty, points.getFirst(), points.getLast());
+        buySell(orderContext, qty, points.get(0), points.get(1));
     }
 
     private void buySell(OrderContext orderContext, double qty, PPoint pointOne, PPoint pointTwo) {
@@ -116,7 +116,7 @@ public class ZipZap extends Study {
             action = Enums.OrderAction.BUY;
         }
 
-        orderContext.createLimitOrder(Enums.OrderAction.BUY, Enums.TIF.GTC, (float) qty, (float) limit);
+        orderContext.createLimitOrder(action, Enums.TIF.GTC, (float) qty, (float) limit);
     }
 
     private List<PPoint> selectPPoints(DataContext ctx) {
@@ -174,7 +174,7 @@ public class ZipZap extends Study {
         }
 
         int start = Math.max(0, points.size() - 3);
-        int end = points.size() - 2;
+        int end = points.size() - 1;
         return points.subList(start, end);
     }
 
@@ -195,12 +195,12 @@ public class ZipZap extends Study {
 
         beginFigureUpdate();
 
-        int index = 1;
+        int index = 0;
         for (var p : newPoints) {
             // Zig Zag Lines
             var c = p.coord;
             var lbl = new Label("Point Selected - " + index + " (value = " + c.getValue() + ")", f, txtColor, bgColor);
-            lbl.setLocation(c.getTime(), isOverlay() ? c.getValue() : p.delta);
+            lbl.setLocation(c.getTime(), c.getValue());
             lbl.setPosition(p.top ? Enums.Position.TOP : Enums.Position.BOTTOM);
             lbl.setShowLine(true);
             lbl.setOffset(offset);
